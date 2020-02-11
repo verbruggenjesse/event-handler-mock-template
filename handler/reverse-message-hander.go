@@ -6,6 +6,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/verbruggenjesse/event-handler-mock-template/domain/interfaces"
 	"github.com/verbruggenjesse/event-handler-mock-template/domain/models"
+	"github.com/verbruggenjesse/event-handler-mock-template/extensions"
 	"github.com/verbruggenjesse/event-handler-mock-template/mock"
 )
 
@@ -24,17 +25,17 @@ func (h *ReverseMessageHandler) Handle(event interfaces.IEvent) error {
 
 	mapstructure.Decode(event.Payload(), &message)
 
-	fmt.Println(message.Content)
+	fmt.Println(extensions.Reverse(message.Content))
 
 	response := map[string]interface{}{
-		"message": message.Content,
+		"message": extensions.Reverse(message.Content),
 	}
 
-	echoNotification := models.NewGlobalNotification(response, event.ID())
+	reversNotification := models.NewGlobalNotification(response, event.ID())
 
 	var ns mock.NotificationService
 
-	ns.Notify(echoNotification)
+	ns.Notify(reversNotification)
 
 	return nil
 }
