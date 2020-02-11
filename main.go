@@ -2,58 +2,39 @@ package main
 
 import (
 	"fmt"
-	"github.com/verbruggenjesse/event-handler-mock-template/handlers"
+	"log"
+	"os"
+
+	"github.com/verbruggenjesse/event-handler-mock-template/handler"
+	"github.com/verbruggenjesse/event-handler-mock-template/infrastructure"
 	"github.com/verbruggenjesse/event-handler-mock-template/mock"
-	"github.com/verbruggenjesse/event-handler-mock-template/models"
+	"google.golang.org/grpc"
 )
 
 func main() {
-	mockEvents := []models.Event{
-		models.Event{
-			Topic:  "message",
-			Action: "echo",
-			Payload: map[string]interface{}{
-				"content": "Hello world!",
-			},
-			Hash: "HelloWorld1",
-		},
-		models.Event{
-			Topic:  "message",
-			Action: "echo",
-			Payload: map[string]interface{}{
-				"content": "Hello people!",
-			},
-			Hash: "HelloPeople1",
-		},
-		models.Event{
-			Topic:  "message",
-			Action: "reverse",
-			Payload: map[string]interface{}{
-				"content": "Hello world!",
-			},
-			Hash: "HelloWorld2",
-		},
-		models.Event{
-			Topic:  "message",
-			Action: "reverse",
-			Payload: map[string]interface{}{
-				"content": "Hello people!",
-			},
-			Hash: "HelloPeople2",
-		},
+	var serverAddr string
+
+	if serverAddr = os.Getenv("EVENT_CENTRAL_ADDR"); serverAddr == "" {
+		log.Fatalln("Missing required environment variable 'EVENT_CENTRAL_ADDR'")
 	}
 
-	eventService := mock.EventService{
-		MockedQueue:  mockEvents,
-		EventChannel: make(chan models.Event),
-	}
-
-	eventService.Subscribe("message", "echo", handlers.EchoMessageHandler)
-	eventService.Subscribe("message", "reverse", handlers.ReverseMessageHandler)
-
-	err := eventService.ListenForEvents()
-
+	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
 	if err != nil {
+		log.Fatal("Could not connect to central service")
+	}
+	defer conn.Close()
+
+	eventService := infrastructure.NewGrpcEventService(conn)
+
+	notificationService := &mock.NotificationService{}
+
+	echoHandler := handler.NewEchoMessageHandler(notificationService)
+	reverseHandler := handler.NewReverseMessageHandler(notificationService)
+
+	eventService.Subscribe("message", "echo", "", echoHandler)
+	eventService.Subscribe("message", "reverse", "", reverseHandler)
+
+	if err = eventService.ListenForEvents(); err != nil {
 		fmt.Println(err)
 	}
 }
